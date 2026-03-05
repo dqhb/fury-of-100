@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>1000-Level Boss Run</title>
+    <title>fury of 1000</title>
     <style>
         body { margin: 0; overflow: hidden; background-color: #0f172a; font-family: 'Segoe UI', Tahoma, sans-serif; color: white; user-select: none; }
         canvas { display: block; }
@@ -43,7 +43,7 @@
 
     <div id="ui-layer">
         <div id="top-bar">
-            <h1>Citrus Doom</h1>
+            <h1>fury of 1000</h1>
             <div id="level-display">Level 1 / 1000</div>
         </div>
     </div>
@@ -103,65 +103,78 @@
         let platforms = [];
         let lasers = [];
         let cameraX = 0;
-        let cameraYOffset = 0;
+        let cameraY = 0;
+        let deathY = 0; // Tracks the lowest point of the generated room
 
         const player = {
             x: 0, y: 0, w: 24, h: 24,
             vx: 0, vy: 0,
-            speed: 0.85, maxSpeed: 6.5, friction: 0.85,
-            jumpPower: -13, gravity: 0.65,
+            speed: 0.9, maxSpeed: 7, friction: 0.85,
+            jumpPower: -13.5, gravity: 0.65,
             grounded: false, color: '#38bdf8'
         };
 
         function buildLevel(level) {
             platforms = [];
-            lasers = []; // Clear attacks on new level
+            lasers = [];
+            
+            let curX = 100;
+            let curY = 0;
             
             // Start platform
-            platforms.push({ x: 100, y: canvas.height / 2 + 100, w: 150, h: 20, type: 'start', color: '#facc15' });
+            platforms.push({ x: curX, y: curY + 100, w: 200, h: 20, type: 'start', color: '#facc15' });
             
-            player.x = 150;
-            player.y = canvas.height / 2;
+            player.x = curX + 50;
+            player.y = curY;
             player.vx = 0;
             player.vy = 0;
 
-            if (level === 1000) {
-                // LEVEL 1000: GIANT TOWER GAUNTLET
-                let currentX = 250;
-                let currentY = canvas.height / 2 + 100;
-                
-                for(let i = 0; i < 30; i++) {
-                    currentX += 120 + Math.random() * 80;
-                    currentY -= 60 + Math.random() * 60; // Constantly building upwards
-                    platforms.push({ x: currentX, y: currentY, w: 60, h: 20, type: 'normal', color: '#ef4444' });
+            // Massive rooms: At least 20 jumps, scales up to 40 later on
+            let numJumps = 20 + Math.floor(level * 0.05);
+            let lowestY = curY + 100;
+
+            // Difficulty modifier (0.0 to 1.0 based on level progress)
+            let diff = Math.min(level / 800, 1);
+
+            for (let i = 0; i < numJumps; i++) {
+                let jumpPattern = Math.floor(Math.random() * 4);
+                let gapX, gapY, platW;
+
+                if (jumpPattern === 0) {
+                    // Stairs Up: Steep vertical climbs
+                    gapX = 80 + Math.random() * 40;
+                    gapY = -70 - Math.random() * 50;
+                    platW = 100 - (diff * 40);
+                } else if (jumpPattern === 1) {
+                    // Stairs Down: Controlled drops
+                    gapX = 100 + Math.random() * 60;
+                    gapY = 80 + Math.random() * 80;
+                    platW = 100 - (diff * 40);
+                } else if (jumpPattern === 2) {
+                    // Long Horizontal Stretch
+                    gapX = 140 + (diff * 50);
+                    gapY = (Math.random() * 40) - 20;
+                    platW = 120 - (diff * 50);
+                } else {
+                    // Stepping Stones (tight platforms)
+                    gapX = 70 + Math.random() * 30;
+                    gapY = (Math.random() * 80) - 40;
+                    platW = Math.max(20, 60 - (diff * 30));
                 }
-                platforms.push({ x: currentX + 150, y: currentY, w: 200, h: 20, type: 'goal', color: '#4ade80' });
-            } else {
-                // Procedural generation for 1-999
-                const numJumps = 3 + Math.floor(level * 0.05); // Scales slower to fit 1000 levels
-                let currentX = 250;
-                let currentY = canvas.height / 2 + 100;
 
-                for (let i = 0; i < numJumps; i++) {
-                    let gapX = 80 + (level * 0.1) + (Math.random() * 70);
-                    let gapY = (Math.random() * 180) - 90; 
-                    let platW = Math.max(20, 120 - (level * 0.08)); // Shrinks platforms
-
-                    currentX += gapX;
-                    currentY += gapY;
-
-                    // Keep platforms in reasonable vertical bounds relative to start
-                    if (currentY > canvas.height - 50) currentY = canvas.height - 50;
-                    if (currentY < 150) currentY = 150;
-
-                    platforms.push({ x: currentX, y: currentY, w: platW, h: 20, type: 'normal', color: '#cbd5e1' });
-                    currentX += platW;
-                }
+                curX += gapX;
+                curY += gapY;
                 
-                let finalGap = 100 + (level * 0.1);
-                platforms.push({ x: currentX + finalGap, y: currentY, w: 100, h: 20, type: 'goal', color: '#4ade80' });
+                if (curY > lowestY) lowestY = curY; // Update death boundary
+
+                platforms.push({ x: curX, y: curY, w: Math.max(20, platW), h: 20, type: 'normal', color: '#cbd5e1' });
+                curX += Math.max(20, platW);
             }
-
+            
+            // Goal platform
+            platforms.push({ x: curX + 120, y: curY, w: 200, h: 20, type: 'goal', color: '#4ade80' });
+            
+            deathY = lowestY + 600; // Give some buffer below the lowest platform
             levelUI.innerText = `Level ${level} / 1000`;
         }
 
@@ -230,34 +243,31 @@
                 player.grounded = false;
             }
 
-            // Fall off screen death
-            if (player.y > canvas.height + 500 || player.y - cameraYOffset > canvas.height + 100) {
+            // Fall off the absolute bottom of the generated room
+            if (player.y > deathY) {
                 die();
             }
         }
 
         function updateBossAttacks() {
-            // Spawn logic: Faster spawn rate at higher levels
             let baseRate = 0.005;
             let levelRate = currentLevel * 0.0001;
-            let spawnChance = Math.min(baseRate + levelRate, 0.08);
+            let spawnChance = Math.min(baseRate + levelRate, 0.12);
 
-            // Level 1000 is absolute bullet hell
-            if (currentLevel === 1000) spawnChance = 0.15;
+            if (currentLevel === 1000) spawnChance = 0.2; // Bullet hell for final level
 
             if (Math.random() < spawnChance) {
-                // Target player or random area ahead
-                let targetX = player.x + (Math.random() * 400 - 100);
+                // Lasers spawn in world space relative to player
+                let targetWorldX = player.x + (Math.random() * 600 - 300);
                 lasers.push({
-                    x: targetX,
-                    w: 40 + Math.random() * 40,
-                    timer: 70, // Frames of warning
+                    worldX: targetWorldX,
+                    w: 40 + Math.random() * 50,
+                    timer: 60, // Frames of warning
                     activeTimer: 15, // Frames of actual damage
                     state: 'warning'
                 });
             }
 
-            // Update lasers
             for (let i = lasers.length - 1; i >= 0; i--) {
                 let l = lasers[i];
                 if (l.state === 'warning') {
@@ -270,9 +280,8 @@
                         continue;
                     }
                     
-                    // Collision with player (infinite vertical beam)
-                    if (player.x < l.x + l.w && player.x + player.w > l.x) {
-                        die();
+                    if (player.x < l.worldX + l.w && player.x + player.w > l.worldX) {
+                        die(); // Hit by laser
                     }
                 }
             }
@@ -282,59 +291,61 @@
             ctx.fillStyle = '#0f172a';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            // Camera handling (Track X and Y for the Level 1000 tower climb)
-            let targetCameraX = player.x - canvas.width / 3;
-            cameraX += (targetCameraX - cameraX) * 0.1;
+            // True 2D Smooth Camera (Follows X and Y)
+            let targetCameraX = player.x - canvas.width / 2;
+            let targetCameraY = player.y - canvas.height / 1.6; // Keep player slightly lower on screen
             
-            let targetCameraY = player.y - canvas.height / 1.5;
-            // Only scroll Y up, not down, or strictly follow
-            cameraYOffset += (targetCameraY - cameraYOffset) * 0.1;
+            cameraX += (targetCameraX - cameraX) * 0.1;
+            cameraY += (targetCameraY - cameraY) * 0.1;
 
+            // --- UI LAYER (Drawn without camera offset) ---
+            
             // Draw Boss (Giant Orange fixed at top center of screen)
             ctx.fillStyle = '#ff8800';
             ctx.beginPath();
             ctx.arc(canvas.width / 2, 0, 150, 0, Math.PI * 2);
             ctx.fill();
             
-            // Boss Eyes (staring down)
+            // Boss Eyes (staring down, tracking player X)
             ctx.fillStyle = '#111';
-            let eyeOffsetX = (player.x - (cameraX + canvas.width/2)) * 0.05; // Eyes follow you slightly
+            let eyeOffsetX = (player.x - (cameraX + canvas.width/2)) * 0.05; 
             ctx.beginPath();
             ctx.arc(canvas.width / 2 - 40 + eyeOffsetX, 60, 15, 0, Math.PI * 2);
             ctx.arc(canvas.width / 2 + 40 + eyeOffsetX, 60, 15, 0, Math.PI * 2);
             ctx.fill();
 
-            // Draw Lasers
+            // Draw Lasers (Locked to world X, but span entire screen Y)
             for (let l of lasers) {
-                let screenX = l.x - cameraX;
+                let screenX = l.worldX - cameraX;
                 if (l.state === 'warning') {
-                    ctx.fillStyle = 'rgba(239, 68, 68, 0.2)'; // Faint red
+                    ctx.fillStyle = 'rgba(239, 68, 68, 0.15)'; 
                     ctx.fillRect(screenX, 0, l.w, canvas.height);
                     
-                    // Draw outline to make bounds clear
-                    ctx.strokeStyle = 'rgba(239, 68, 68, 0.5)';
+                    ctx.strokeStyle = 'rgba(239, 68, 68, 0.6)';
                     ctx.lineWidth = 2;
                     ctx.strokeRect(screenX, 0, l.w, canvas.height);
                 } else if (l.state === 'active') {
-                    ctx.fillStyle = '#ef4444'; // Solid deadly red
+                    ctx.fillStyle = '#ef4444'; 
                     ctx.shadowBlur = 20;
                     ctx.shadowColor = '#ef4444';
                     ctx.fillRect(screenX, 0, l.w, canvas.height);
-                    ctx.shadowBlur = 0; // reset
+                    ctx.shadowBlur = 0; 
                 }
             }
+
+            // --- WORLD LAYER (Drawn with camera offset) ---
 
             // Draw Platforms
             for (let p of platforms) {
                 ctx.fillStyle = p.color;
-                ctx.fillRect(p.x - cameraX, p.y - cameraYOffset, p.w, p.h);
+                ctx.fillRect(p.x - cameraX, p.y - cameraY, p.w, p.h);
             }
 
             // Draw Player
             ctx.fillStyle = player.color;
             ctx.shadowBlur = 15;
             ctx.shadowColor = player.color;
-            ctx.fillRect(player.x - cameraX, player.y - cameraYOffset, player.w, player.h);
+            ctx.fillRect(player.x - cameraX, player.y - cameraY, player.w, player.h);
             ctx.shadowBlur = 0;
         }
 
