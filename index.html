@@ -30,6 +30,23 @@
         }
         .checkbox-container input { width: 20px; height: 20px; accent-color: #ef4444; cursor: pointer; }
 
+        #reset-btn {
+            margin-top: 15px;
+            background: #38bdf8;
+            color: #000;
+            border: none;
+            padding: 10px 15px;
+            font-size: 1rem;
+            font-weight: bold;
+            border-radius: 5px;
+            cursor: pointer;
+            text-transform: uppercase;
+            box-shadow: 0 0 10px #38bdf8;
+            pointer-events: auto;
+            width: 100%;
+        }
+        #reset-btn:hover { background: #bae6fd; }
+
         #controls { align-self: center; background: rgba(0,0,0,0.7); padding: 10px 20px; border-radius: 20px; border: 1px solid #555; color: #aaa; font-size: 0.8rem; letter-spacing: 2px; pointer-events: none; }
         .highlight { color: #fff; font-weight: bold; }
         
@@ -52,6 +69,8 @@
                     <input type="checkbox" id="obstacle-toggle">
                     OBSTACLES
                 </label>
+                
+                <button id="reset-btn">GO TO TRACK</button>
             </div>
             <div class="panel">
                 <div id="speedometer">0</div>
@@ -84,8 +103,17 @@
         dirLight.position.set(100, 200, 50);
         scene.add(dirLight);
 
+        const seed1 = Math.random() * 1000;
+        const seed2 = Math.random() * 1000;
+        const trackWidth = 10;
+
+        function getTrackCenter(absZ) {
+            return Math.sin(absZ * 0.006 + seed1) * 350 + Math.sin(absZ * 0.003 + seed2) * 400;
+        }
+
         const carGroup = new THREE.Group();
         scene.add(carGroup);
+        carGroup.position.x = getTrackCenter(0);
 
         const bodyMat = new THREE.MeshStandardMaterial({ color: 0xec4899, roughness: 0.2, metalness: 0.8 }); 
         const blackMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.9 });
@@ -132,14 +160,6 @@
         ground.rotation.x = -Math.PI / 2;
         ground.position.y = -0.1;
         scene.add(ground);
-
-        const seed1 = Math.random() * 1000;
-        const seed2 = Math.random() * 1000;
-        const trackWidth = 10;
-
-        function getTrackCenter(absZ) {
-            return Math.sin(absZ * 0.006 + seed1) * 350 + Math.sin(absZ * 0.003 + seed2) * 400;
-        }
 
         const trackElements = [];
         const curbGeo = new THREE.BoxGeometry(1, 0.5, 5);
@@ -192,6 +212,16 @@
         const uiSpeed = document.getElementById('speedometer');
         const uiDist = document.getElementById('distance');
         const alertText = document.getElementById('alert-text');
+        const resetBtn = document.getElementById('reset-btn');
+
+        resetBtn.addEventListener('click', () => {
+            carGroup.position.x = getTrackCenter(-carGroup.position.z);
+            speed = 0;
+            carRotation = 0;
+            steeringAngle = 0;
+            crashed = false;
+            alertText.style.opacity = 0;
+        });
 
         function animate() {
             requestAnimationFrame(animate);
@@ -301,14 +331,10 @@
                 }
             }
 
-            const targetX = currentCenter; 
-            const targetY = 8 + (speed * 0.5); 
-            const targetZ = carGroup.position.z + 18 + (speed * 1.5);
-
-            camera.position.x += ((carGroup.position.x * 0.4 + targetX * 0.6) - camera.position.x) * 0.1;
-            camera.position.y += (targetY - camera.position.y) * 0.1;
-            camera.position.z += (targetZ - camera.position.z) * 0.1;
-            camera.lookAt(carGroup.position.x, carGroup.position.y, carGroup.position.z - 20);
+            camera.position.x = carGroup.position.x + Math.sin(carRotation) * 12;
+            camera.position.y = 4;
+            camera.position.z = carGroup.position.z + Math.cos(carRotation) * 12;
+            camera.lookAt(carGroup.position.x, carGroup.position.y, carGroup.position.z);
 
             uiSpeed.innerText = Math.floor(speed * 110); 
             uiDist.innerText = Math.floor(Math.max(0, absZ));
