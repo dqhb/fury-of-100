@@ -7,36 +7,19 @@
     <style>
         body { margin: 0; overflow: hidden; background-color: #0f172a; font-family: 'Segoe UI', Tahoma, sans-serif; color: white; user-select: none; }
         canvas { display: block; }
-
-        #ui-layer {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            pointer-events: none; display: flex; flex-direction: column; justify-content: space-between;
-            padding: 30px; box-sizing: border-box; text-transform: uppercase;
-        }
-
+        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; display: flex; flex-direction: column; justify-content: space-between; padding: 30px; box-sizing: border-box; text-transform: uppercase; }
         #top-bar { display: flex; justify-content: space-between; align-items: flex-start; text-shadow: 0 0 10px rgba(255,255,255,0.5); }
         h1 { margin: 0; font-size: 2.5rem; color: #ff8800; letter-spacing: 2px; text-shadow: 0 0 20px #ff8800;}
         #level-display { font-size: 1.5rem; color: #facc15; text-shadow: 0 0 10px #facc15;}
-
-        #menu, #victory {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(15, 23, 42, 0.9); display: flex; flex-direction: column;
-            justify-content: center; align-items: center; pointer-events: auto; z-index: 10;
-        }
-
+        #menu, #victory { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.9); display: flex; flex-direction: column; justify-content: center; align-items: center; pointer-events: auto; z-index: 10; }
         #menu h2, #victory h2 { font-size: 4rem; color: #ff8800; margin: 0 0 20px 0; text-shadow: 0 0 20px #ff8800; text-align: center; }
         #victory h2 { color: #4ade80; text-shadow: 0 0 30px #4ade80; font-size: 3rem; }
         p { color: #94a3b8; font-size: 1.2rem; margin-bottom: 30px; letter-spacing: 1px; text-align: center;}
         .controls-text { color: #fff; font-weight: bold; }
-
-        button {
-            background: #ff8800; color: #0f172a; border: none; padding: 15px 40px;
-            font-size: 1.5rem; font-weight: bold; border-radius: 8px; cursor: pointer;
-            text-transform: uppercase; box-shadow: 0 0 15px #ff8800; transition: transform 0.1s;
-        }
+        button { background: #ff8800; color: #0f172a; border: none; padding: 15px 40px; font-size: 1.5rem; font-weight: bold; border-radius: 8px; cursor: pointer; text-transform: uppercase; box-shadow: 0 0 15px #ff8800; transition: transform 0.1s; }
         button:hover { transform: scale(1.05); background: #ffaa33; }
-        
         #victory { display: none; z-index: 20; }
+        #boss-alert { font-size: 2rem; color: #ef4444; font-weight: bold; text-shadow: 0 0 15px #ef4444; text-align: center; opacity: 0; transition: opacity 0.5s;}
     </style>
 </head>
 <body>
@@ -44,7 +27,10 @@
     <div id="ui-layer">
         <div id="top-bar">
             <h1>big orange</h1>
-            <div id="level-display">JUMPS: 2 &nbsp;|&nbsp; LEVEL 1 / 100</div>
+            <div style="display:flex; flex-direction:column; align-items:flex-end;">
+                <div id="level-display">JUMPS: 2 &nbsp;|&nbsp; LEVEL 1 / 100</div>
+                <div id="boss-alert">BOSS ROOM: ISOLATED ATTACK</div>
+            </div>
         </div>
     </div>
 
@@ -52,7 +38,7 @@
         <h2>THE ORANGE WATCHES</h2>
         <p>
             <span class="controls-text">A / D / ARROWS</span> Move | <span class="controls-text">W / SPACE</span> Double Jump<br><br>
-            Dodge the <span style="color:#ff8800; font-weight:bold;">Orange Lasers</span> and falling <span style="color:#ea580c; font-weight:bold;">Asteroids</span>
+            Survive all 10 distinct Citrus Attacks!
         </p>
         <button id="start-btn">BEGIN RUN</button>
     </div>
@@ -71,483 +57,328 @@
         const menu = document.getElementById('menu');
         const startBtn = document.getElementById('start-btn');
         const levelUI = document.getElementById('level-display');
+        const bossAlert = document.getElementById('boss-alert');
         const victoryScreen = document.getElementById('victory');
 
-        let isPlaying = false;
-        let animationId;
+        let isPlaying = false, animationId;
 
-        function resizeCanvas() {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-        }
+        function resizeCanvas() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
         window.addEventListener('resize', resizeCanvas);
         resizeCanvas();
-
-        startBtn.addEventListener('click', () => {
-            menu.style.display = 'none';
-            isPlaying = true;
-            buildLevel(currentLevel);
-            gameLoop();
-        });
 
         const keys = { left: false, right: false };
         let jumpPressed = false; 
 
         window.addEventListener('keydown', e => { 
             let key = e.key.toLowerCase();
-            
             if (key === 'a' || key === 'arrowleft') keys.left = true;
             if (key === 'd' || key === 'arrowright') keys.right = true;
-            
             let isJumpKey = (e.code === 'Space' || e.key === ' ' || key === 'w' || key === 'arrowup');
-            
             if (isJumpKey) {
                 e.preventDefault(); 
-                
                 if (!jumpPressed && !player.dead && player.jumpsLeft > 0) {
-                    player.vy = player.jumpPower;
-                    player.jumpsLeft--;
-                    jumpPressed = true;
+                    player.vy = player.jumpPower; player.jumpsLeft--; jumpPressed = true;
                 }
             }
         });
-        
         window.addEventListener('keyup', e => { 
             let key = e.key.toLowerCase();
-            
             if (key === 'a' || key === 'arrowleft') keys.left = false;
             if (key === 'd' || key === 'arrowright') keys.right = false;
-            
-            let isJumpKey = (e.code === 'Space' || e.key === ' ' || key === 'w' || key === 'arrowup');
-            if (isJumpKey) {
-                jumpPressed = false; 
-            }
+            if (e.code === 'Space' || e.key === ' ' || key === 'w' || key === 'arrowup') jumpPressed = false; 
+        });
+
+        startBtn.addEventListener('click', () => {
+            menu.style.display = 'none'; isPlaying = true; buildLevel(currentLevel); gameLoop();
         });
 
         let currentLevel = 1;
-        let platforms = [];
-        let lasers = [];
-        let asteroids = [];
-        let particles = [];
-        let bgOranges = [];
-        let cameraX = 0;
-        let cameraY = 0;
-        let deathY = 0; 
+        let platforms = [], hazards = [], particles = [], bgOranges = [];
+        let cameraX = 0, cameraY = 0, deathY = 0; 
+        let windForce = 0, windTimer = 0;
 
         const player = {
-            x: 0, y: 0, w: 24, h: 24,
-            vx: 0, vy: 0,
+            x: 0, y: 0, w: 24, h: 24, vx: 0, vy: 0,
             speed: 0.9, maxSpeed: 7, friction: 0.85,
-            jumpPower: -12.5, gravity: 0.65, 
-            jumpsLeft: 2, maxJumps: 2,
-            color: '#38bdf8', dead: false
+            jumpPower: -12.5, gravity: 0.65, jumpsLeft: 2, maxJumps: 2, dead: false
         };
 
         function buildLevel(level) {
-            platforms = [];
-            lasers = [];
-            asteroids = [];
-            particles = [];
-            bgOranges = [];
+            platforms = []; hazards = []; particles = []; bgOranges = [];
+            windForce = 0; windTimer = 0;
             
-            let curX = 100;
-            let curY = 0;
-            let minX = -500;
-            let maxX = 500;
-            let minY = -500;
-            let maxY = 500;
+            let curX = 100, curY = 0;
+            let minX = -500, maxX = 500, minY = -500, maxY = 500;
             
-            // Start platform
             platforms.push({ x: curX, y: curY + 100, w: 200, h: 20, type: 'start', color: '#facc15' });
             
-            player.x = curX + 50;
-            player.y = curY;
-            player.vx = 0;
-            player.vy = 0;
-            player.dead = false;
-            player.jumpsLeft = player.maxJumps;
-            jumpPressed = false; 
+            player.x = curX + 50; player.y = curY; player.vx = 0; player.vy = 0;
+            player.dead = false; player.jumpsLeft = player.maxJumps; jumpPressed = false; 
 
-            // Calculate room size based on level
-            let numJumps = 15 + Math.floor(level * 0.3);
-            let diff = Math.min(level / 100, 1);
+            let numJumps = 12 + Math.floor(level * 0.2);
             let lowestY = curY + 100;
 
             for (let i = 0; i < numJumps; i++) {
-                // 4 completely different jump generation modes
-                let jumpPattern = Math.floor(Math.random() * 4);
+                let jumpPattern = Math.floor(Math.random() * 3);
                 let gapX, gapY, platW;
 
-                if (jumpPattern === 0) {
-                    // Straight / Steep UP
-                    gapX = (Math.random() * 100) - 50; // Wiggle slightly left/right
-                    gapY = -120 - Math.random() * 80;
-                    platW = 70 + Math.random() * 50;
-                } else if (jumpPattern === 1) {
-                    // Staircase UP (Left or Right)
-                    let dir = Math.random() < 0.5 ? 1 : -1;
-                    gapX = dir * (80 + Math.random() * 60);
-                    gapY = -80 - Math.random() * 60;
-                    platW = 80 + Math.random() * 40;
-                } else if (jumpPattern === 2) {
-                    // Long Horizontal Jump (Left or Right)
-                    let dir = Math.random() < 0.5 ? 1 : -1;
-                    gapX = dir * (160 + (diff * 50));
+                // Restructured Jump Gaps for Consistency 
+                if (jumpPattern === 0) { // Upward Angle
+                    gapX = (Math.random() < 0.5 ? 1 : -1) * (140 + Math.random() * 60); 
+                    gapY = -120 - Math.random() * 40;
+                } else if (jumpPattern === 1) { // Long Flat Jump
+                    gapX = (Math.random() < 0.5 ? 1 : -1) * (200 + Math.random() * 60); 
                     gapY = (Math.random() * 60) - 30;
-                    platW = 90 + Math.random() * 40;
-                } else {
-                    // Drop DOWN
-                    let dir = Math.random() < 0.5 ? 1 : -1;
-                    gapX = dir * (50 + Math.random() * 100);
-                    gapY = 100 + Math.random() * 100;
-                    platW = 70 + Math.random() * 50;
+                } else { // Downward Drop
+                    gapX = (Math.random() < 0.5 ? 1 : -1) * (150 + Math.random() * 60); 
+                    gapY = 80 + Math.random() * 80;
                 }
 
-                curX += gapX;
-                curY += gapY;
-                
-                // Track bounds for background oranges and death barrier
+                // Minimum gap safety override
+                if (Math.abs(gapX) < 130) gapX = (gapX < 0 ? -130 : 130);
+
+                platW = 60 + Math.random() * 50;
+
+                curX += gapX; curY += gapY;
                 if (curY > lowestY) lowestY = curY;
-                if (curY < minY) minY = curY;
-                if (curY > maxY) maxY = curY;
-                if (curX < minX) minX = curX;
-                if (curX > maxX) maxX = curX;
+                if (curY < minY) minY = curY; if (curY > maxY) maxY = curY;
+                if (curX < minX) minX = curX; if (curX > maxX) maxX = curX;
 
-                // Pick a random orange shade for the platform
                 let orangeShades = ['#ea580c', '#f97316', '#fdba74', '#c2410c'];
-                let pColor = orangeShades[Math.floor(Math.random() * orangeShades.length)];
-
-                platforms.push({ x: curX, y: curY, w: Math.max(20, platW), h: 20, type: 'normal', color: pColor });
+                platforms.push({ x: curX, y: curY, w: platW, h: 20, type: 'normal', color: orangeShades[Math.floor(Math.random()*orangeShades.length)] });
             }
             
-            // Goal platform (always slightly above the last platform so you don't miss it)
-            platforms.push({ x: curX + (Math.random() < 0.5 ? 150 : -150), y: curY - 50, w: 200, h: 20, type: 'goal', color: '#4ade80' });
+            platforms.push({ x: curX + (Math.random()<0.5 ? 160 : -160), y: curY - 50, w: 200, h: 20, type: 'goal', color: '#4ade80' });
             
-            // Expand background bounds to cover the weird geometry
-            minX -= 500; maxX += 500;
-            minY -= 800; maxY += 800;
+            minX -= 500; maxX += 500; minY -= 800; maxY += 800;
+            for(let i = 0; i < 50; i++) bgOranges.push({ x: minX + Math.random()*(maxX-minX), y: minY + Math.random()*(maxY-minY), r: Math.random()*150+50, parallax: Math.random()*0.4+0.1 });
+            deathY = lowestY + 600; 
 
-            for(let i = 0; i < 60; i++) {
-                bgOranges.push({
-                    x: minX + Math.random() * (maxX - minX),
-                    y: minY + Math.random() * (maxY - minY),
-                    r: Math.random() * 150 + 50,
-                    parallax: Math.random() * 0.4 + 0.1 
-                });
-            }
-
-            // Death barrier adapts to how far down the level generated
-            deathY = lowestY + 800; 
-        }
-
-        function isColliding(rect1, rect2) {
-            return rect1.x < rect2.x + rect2.w &&
-                   rect1.x + rect1.w > rect2.x &&
-                   rect1.y < rect2.y + rect2.h &&
-                   rect1.y + rect1.h > rect2.y;
+            bossAlert.style.opacity = (level % 10 === 0) ? '1' : '0';
         }
 
         function createSplash(x, y) {
-            for(let i = 0; i < 40; i++) {
-                particles.push({
-                    x: x, y: y,
-                    vx: (Math.random() - 0.5) * 16,
-                    vy: (Math.random() - 0.5) * 16 - 4,
-                    size: Math.random() * 6 + 2,
-                    life: 1.0,
-                    decay: Math.random() * 0.02 + 0.01
-                });
-            }
+            for(let i=0; i<30; i++) particles.push({ x: x, y: y, vx: (Math.random()-0.5)*14, vy: (Math.random()-0.5)*14-4, size: Math.random()*6+2, life: 1.0 });
         }
 
         function die() {
-            if (player.dead) return;
-            player.dead = true;
-            createSplash(player.x + player.w / 2, player.y + player.h / 2);
-            
-            setTimeout(() => {
-                buildLevel(currentLevel);
-            }, 1000);
+            if (player.dead) return; player.dead = true;
+            createSplash(player.x+player.w/2, player.y+player.h/2);
+            setTimeout(() => buildLevel(currentLevel), 1000);
         }
 
-        function updatePhysics() {
-            // Update Splashes
-            for(let i = particles.length - 1; i >= 0; i--) {
-                let p = particles[i];
-                p.x += p.vx;
-                p.y += p.vy;
-                p.vy += 0.5; 
-                p.life -= p.decay;
-                if(p.life <= 0) particles.splice(i, 1);
+        function spawnHazard(type) {
+            if (type === 0) hazards.push({ type: 0, x: player.x+(Math.random()*800-400), w: 50, timer: 60, active: 15, state: 'warn' });
+            else if (type === 1) hazards.push({ type: 1, y: player.y+(Math.random()*600-300), w: 50, timer: 60, active: 15, state: 'warn' });
+            else if (type === 2) hazards.push({ type: 2, x: player.x+(Math.random()*1200-600), y: player.y-800, vx: (Math.random()-0.5)*4, vy: 9+Math.random()*4, r: 16 });
+            else if (type === 3) hazards.push({ type: 3, x: player.x+(Math.random()<0.5?700:-700), y: player.y+(Math.random()*400-200), vx: 0, vy: 0, r: 8, life: 300 });
+            else if (type === 4) hazards.push({ type: 4, x: player.x+(Math.random()*800-400), y: player.y-600, vx: (Math.random()-0.5)*8, vy: 0, r: 12, life: 400 });
+            else if (type === 5) {
+                let p = platforms[Math.floor(Math.random()*(platforms.length-2))+1];
+                hazards.push({ type: 5, x: p.x+p.w/2-25, y: p.y, w: 50, h: 0, maxH: 800, timer: 70, active: 40, state: 'warn' });
             }
-
-            if (player.dead) return; 
-
-            // Horizontal Movement
-            if (keys.left) player.vx -= player.speed;
-            if (keys.right) player.vx += player.speed;
-            player.vx *= player.friction;
-            
-            player.vx = Math.max(-player.maxSpeed, Math.min(player.maxSpeed, player.vx));
-            player.x += player.vx;
-
-            // Horizontal Collisions
-            for (let p of platforms) {
-                if (isColliding(player, p)) {
-                    if (player.vx > 0) player.x = p.x - player.w;
-                    else if (player.vx < 0) player.x = p.x + p.w;
-                    player.vx = 0;
-                }
+            else if (type === 6) {
+                let dir = Math.random()<0.5?1:-1;
+                hazards.push({ type: 6, x: player.x-800*dir, y: player.y+(Math.random()*200-100), vx: 20*dir, vy: 0, ax: -0.2*dir, r: 18, life: 400 });
             }
-
-            // Vertical Movement
-            player.vy += player.gravity;
-            player.y += player.vy;
-
-            // Vertical Collisions
-            for (let p of platforms) {
-                if (isColliding(player, p)) {
-                    if (player.vy > 0) { // Landing
-                        player.y = p.y - player.h;
-                        player.vy = 0;
-                        player.jumpsLeft = player.maxJumps; 
-                        
-                        if (p.type === 'goal') {
-                            currentLevel++;
-                            if (currentLevel > 100) {
-                                isPlaying = false;
-                                victoryScreen.style.display = 'flex';
-                            } else {
-                                buildLevel(currentLevel);
-                            }
-                            return; 
-                        }
-                    } else if (player.vy < 0) { // Hitting head on ceiling
-                        player.y = p.y + p.h;
-                        player.vy = 0;
-                    }
-                }
+            else if (type === 7) {
+                if(windTimer <= 0) { windForce = (Math.random()<0.5?1:-1) * (0.2 + Math.random()*0.15); windTimer = 180; }
             }
-
-            if (player.y > deathY) {
-                die();
+            else if (type === 8) hazards.push({ type: 8, tx: 0, ty: 0, timer: 70, state: 'aim' });
+            else if (type === 9) {
+                let p = platforms[Math.floor(Math.random()*(platforms.length-2))+1];
+                hazards.push({ type: 9, x: p.x+p.w/2, y: p.y-14, vx: (Math.random()<0.5?-4.5:4.5), vy: 0, r: 14 });
             }
         }
 
         function updateHazards() {
             if (player.dead) return; 
 
-            // --- LASERS ---
-            let laserChance = Math.min(0.005 + currentLevel * 0.0005, 0.15);
-            if (currentLevel === 100) laserChance = 0.25; 
+            // Logic: All attacks at once on standard levels, 1 isolated attack on boss levels
+            let isBoss = (currentLevel % 10 === 0);
+            let activeTypes = isBoss ? [(currentLevel/10)-1] : [0,1,2,3,4,5,6,7,8,9];
+            
+            // Adjust spawn rates heavily based on if it's mixed or isolated
+            let chance = isBoss ? 0.05 + (currentLevel*0.0005) : 0.003 + (currentLevel*0.00005);
+            activeTypes.forEach(t => { if (Math.random() < chance) spawnHazard(t); });
 
-            if (Math.random() < laserChance) {
-                let isHoriz = Math.random() > 0.5;
-                lasers.push({
-                    worldX: isHoriz ? 0 : player.x + (Math.random() * 800 - 400),
-                    worldY: isHoriz ? player.y + (Math.random() * 600 - 300) : 0,
-                    w: 30 + Math.random() * 60,
-                    timer: 60, 
-                    activeTimer: 15, 
-                    state: 'warning',
-                    isHorizontal: isHoriz
-                });
-            }
+            if (windTimer > 0) { windTimer--; player.vx += windForce; if(windTimer<=0) windForce=0; }
 
-            for (let i = lasers.length - 1; i >= 0; i--) {
-                let l = lasers[i];
-                if (l.state === 'warning') {
-                    l.timer--;
-                    if (l.timer <= 0) l.state = 'active';
-                } else if (l.state === 'active') {
-                    l.activeTimer--;
-                    if (l.activeTimer <= 0) {
-                        lasers.splice(i, 1);
-                        continue;
+            let px = player.x+player.w/2; let py = player.y+player.h/2;
+
+            for (let i = hazards.length-1; i >= 0; i--) {
+                let h = hazards[i]; let remove = false;
+                
+                if (h.type === 0 || h.type === 1) { // Lasers
+                    if (h.state === 'warn') { h.timer--; if(h.timer<=0) h.state = 'active'; }
+                    else {
+                        h.active--; if(h.active<=0) remove = true;
+                        else if (h.type === 0 && player.x < h.x+h.w && player.x+player.w > h.x) die();
+                        else if (h.type === 1 && player.y < h.y+h.w && player.y+player.h > h.y) die();
                     }
-                    
-                    // Laser Collision Check
-                    if (l.isHorizontal) {
-                        if (player.y < l.worldY + l.w && player.y + player.h > l.worldY) die();
-                    } else {
-                        if (player.x < l.worldX + l.w && player.x + player.w > l.worldX) die();
+                } else if (h.type === 2) { // Asteroid
+                    h.x+=h.vx; h.y+=h.vy; if (Math.hypot(h.x-px, h.y-py) < h.r+12) die();
+                    for(let p of platforms) if(h.x>p.x && h.x<p.x+p.w && h.y+h.r>p.y && h.y-h.r<p.y+p.h) { remove=true; createSplash(h.x, h.y+h.r); break; }
+                } else if (h.type === 3) { // Homing Seed
+                    h.life--; if(h.life<=0) remove = true;
+                    let d = Math.hypot(px-h.x, py-h.y); if (d < h.r+12) die();
+                    h.vx += ((px-h.x)/d)*0.15; h.vy += ((py-h.y)/d)*0.15;
+                    let s = Math.hypot(h.vx, h.vy); if(s>5) { h.vx=(h.vx/s)*5; h.vy=(h.vy/s)*5; }
+                    h.x+=h.vx; h.y+=h.vy;
+                } else if (h.type === 4) { // Pulp Bounce
+                    h.life--; if(h.life<=0) remove = true;
+                    h.vy += player.gravity*0.8; h.x+=h.vx; h.y+=h.vy;
+                    if (Math.hypot(h.x-px, h.y-py) < h.r+12) die();
+                    for(let p of platforms) if(h.x>p.x && h.x<p.x+p.w && h.y+h.r>p.y && h.y<p.y+p.h) { h.y=p.y-h.r; h.vy = -Math.abs(h.vy)*0.85; }
+                } else if (h.type === 5) { // Geyser
+                    if (h.state === 'warn') { h.timer--; if(h.timer<=0) h.state = 'active'; }
+                    else {
+                        h.active--; if(h.active<=0) remove = true;
+                        else {
+                            h.h = Math.min(h.h+45, h.maxH);
+                            if (player.x<h.x+h.w && player.x+player.w>h.x && player.y+player.h>h.y-h.h && player.y<h.y) die();
+                        }
                     }
-                }
-            }
-
-            // --- ASTEROIDS ---
-            let asteroidChance = Math.min(0.01 + currentLevel * 0.001, 0.1);
-            if (Math.random() < asteroidChance) {
-                asteroids.push({
-                    x: player.x + (Math.random() * 1200 - 600),
-                    y: player.y - 800, // Spawn high above
-                    vx: (Math.random() - 0.5) * 6,
-                    vy: 7 + Math.random() * 6,
-                    r: 12 + Math.random() * 18,
-                    rot: 0,
-                    rotSpeed: (Math.random() - 0.5) * 0.2
-                });
-            }
-
-            for (let i = asteroids.length - 1; i >= 0; i--) {
-                let a = asteroids[i];
-                a.x += a.vx;
-                a.y += a.vy;
-                a.rot += a.rotSpeed;
-
-                // Hit Player
-                let dx = (player.x + player.w / 2) - a.x;
-                let dy = (player.y + player.h / 2) - a.y;
-                if (Math.hypot(dx, dy) < a.r + (player.w / 2)) {
-                    die();
-                }
-
-                // Hit Platform (Destroys the asteroid and makes a splash)
-                let hitPlatform = false;
-                for (let p of platforms) {
-                    if (a.x + a.r > p.x && a.x - a.r < p.x + p.w &&
-                        a.y + a.r > p.y && a.y - a.r < p.y + p.h) {
-                        hitPlatform = true;
-                        break;
+                } else if (h.type === 6) { // Boomerang
+                    h.life--; if(h.life<=0) remove = true;
+                    h.vx+=h.ax; h.x+=h.vx; h.y+=h.vy;
+                    if (Math.hypot(h.x-px, h.y-py) < h.r+12) die();
+                } else if (h.type === 8) { // Sniper
+                    if (h.state === 'aim') {
+                        h.tx = px; h.ty = py; h.timer--; if(h.timer<=0) { h.state='lock'; h.timer=20; }
+                    } else if (h.state === 'lock') {
+                        h.timer--; if(h.timer<=0) {
+                            h.state = 'bullet'; h.x = cameraX+canvas.width/2; h.y = cameraY+60; h.r = 12;
+                            let d = Math.hypot(h.tx-h.x, h.ty-h.y);
+                            h.vx = ((h.tx-h.x)/d)*28; h.vy = ((h.ty-h.y)/d)*28;
+                        }
+                    } else if (h.state === 'bullet') {
+                        h.x+=h.vx; h.y+=h.vy; if (Math.hypot(h.x-px, h.y-py) < h.r+12) die();
+                        if (Math.abs(h.x-px)>2000) remove = true;
                     }
+                } else if (h.type === 9) { // Roller
+                    h.vy += player.gravity; h.x+=h.vx; h.y+=h.vy;
+                    if (Math.hypot(h.x-px, h.y-py) < h.r+12) die();
+                    for(let p of platforms) if(h.x>p.x && h.x<p.x+p.w && h.y+h.r>p.y && h.y<p.y+p.h) { h.y=p.y-h.r; h.vy=0; break; }
+                    if (h.y>deathY) remove = true;
                 }
+                if (remove) hazards.splice(i, 1);
+            }
+        }
 
-                if (hitPlatform || a.y > deathY) {
-                    createSplash(a.x, a.y + a.r); // Splash at bottom of asteroid
-                    asteroids.splice(i, 1);
+        function updatePhysics() {
+            for(let i = particles.length-1; i>=0; i--) {
+                let p = particles[i]; p.x+=p.vx; p.y+=p.vy; p.vy+=0.5; p.life-=0.02;
+                if(p.life<=0) particles.splice(i,1);
+            }
+
+            if (player.dead) return; 
+
+            if (keys.left) player.vx -= player.speed; if (keys.right) player.vx += player.speed;
+            player.vx *= player.friction;
+            player.vx = Math.max(-player.maxSpeed, Math.min(player.maxSpeed, player.vx));
+            player.x += player.vx;
+
+            for (let p of platforms) {
+                if (player.x<p.x+p.w && player.x+player.w>p.x && player.y<p.y+p.h && player.y+player.h>p.y) {
+                    if (player.vx>0) player.x=p.x-player.w; else if (player.vx<0) player.x=p.x+p.w;
+                    player.vx = 0;
                 }
             }
+
+            player.vy += player.gravity; player.y += player.vy;
+
+            for (let p of platforms) {
+                if (player.x<p.x+p.w && player.x+player.w>p.x && player.y<p.y+p.h && player.y+player.h>p.y) {
+                    if (player.vy>0) { 
+                        player.y=p.y-player.h; player.vy=0; player.jumpsLeft=player.maxJumps; 
+                        if (p.type === 'goal') {
+                            currentLevel++;
+                            if (currentLevel > 100) { isPlaying = false; victoryScreen.style.display = 'flex'; } 
+                            else buildLevel(currentLevel);
+                            return; 
+                        }
+                    } else if (player.vy<0) { player.y=p.y+p.h; player.vy=0; }
+                }
+            }
+            if (player.y > deathY) die();
         }
 
         function draw() {
-            ctx.fillStyle = '#0f172a';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = '#0f172a'; ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            let targetCameraX = player.x - canvas.width / 2;
-            let targetCameraY = player.y - canvas.height / 1.6; 
-            
-            cameraX += (targetCameraX - cameraX) * 0.1;
-            cameraY += (targetCameraY - cameraY) * 0.1;
+            cameraX += ((player.x - canvas.width/2) - cameraX) * 0.1;
+            cameraY += ((player.y - canvas.height/1.6) - cameraY) * 0.1;
 
-            levelUI.innerHTML = `JUMPS: <span style="color: ${player.jumpsLeft > 0 ? '#4ade80' : '#ef4444'}">${player.jumpsLeft}</span> &nbsp;|&nbsp; LEVEL ${currentLevel} / 100`;
+            levelUI.innerHTML = `JUMPS: <span style="color: ${player.jumpsLeft>0?'#4ade80':'#ef4444'}">${player.jumpsLeft}</span> &nbsp;|&nbsp; LEVEL ${currentLevel} / 100`;
 
-            // Draw Parallax Oranges
-            for (let o of bgOranges) {
-                ctx.fillStyle = 'rgba(255, 136, 0, 0.05)';
-                ctx.beginPath();
-                ctx.arc(o.x - (cameraX * o.parallax), o.y - (cameraY * o.parallax), o.r, 0, Math.PI * 2);
-                ctx.fill();
-            }
+            // Parallax Background
+            for (let o of bgOranges) { ctx.fillStyle = 'rgba(255,136,0,0.05)'; ctx.beginPath(); ctx.arc(o.x-(cameraX*o.parallax), o.y-(cameraY*o.parallax), o.r, 0, Math.PI*2); ctx.fill(); }
 
-            // Draw Boss (Matches the Orange Theme now)
-            ctx.fillStyle = '#ea580c';
-            ctx.beginPath();
-            ctx.arc(canvas.width / 2, 0, 150, 0, Math.PI * 2);
-            ctx.fill();
-            
-            ctx.fillStyle = '#111';
-            let eyeOffsetX = (player.x - (cameraX + canvas.width/2)) * 0.05; 
-            ctx.beginPath();
-            ctx.arc(canvas.width / 2 - 40 + eyeOffsetX, 60, 15, 0, Math.PI * 2);
-            ctx.arc(canvas.width / 2 + 40 + eyeOffsetX, 60, 15, 0, Math.PI * 2);
-            ctx.fill();
-
-            // Draw Platforms
-            for (let p of platforms) {
-                ctx.fillStyle = p.color;
-                ctx.fillRect(p.x - cameraX, p.y - cameraY, p.w, p.h);
-            }
-
-            // Draw Asteroids
-            for (let a of asteroids) {
-                ctx.save();
-                ctx.translate(a.x - cameraX, a.y - cameraY);
-                ctx.rotate(a.rot);
-                ctx.fillStyle = '#c2410c'; // Dark rugged orange
-                ctx.beginPath();
-                ctx.arc(0, 0, a.r, 0, Math.PI * 2);
-                ctx.fill();
-                
-                // Little crater details on the asteroid
-                ctx.fillStyle = '#9a3412';
-                ctx.beginPath();
-                ctx.arc(-a.r*0.3, -a.r*0.3, a.r*0.2, 0, Math.PI * 2);
-                ctx.arc(a.r*0.4, a.r*0.1, a.r*0.25, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.restore();
-            }
-
-            // Draw Lasers (Now Orange & Omni-directional)
-            for (let l of lasers) {
-                if (l.isHorizontal) {
-                    let screenY = l.worldY - cameraY;
-                    if (l.state === 'warning') {
-                        ctx.fillStyle = 'rgba(251, 146, 60, 0.15)'; 
-                        ctx.fillRect(0, screenY, canvas.width, l.w);
-                        ctx.strokeStyle = 'rgba(251, 146, 60, 0.6)';
-                        ctx.lineWidth = 2;
-                        ctx.strokeRect(0, screenY, canvas.width, l.w);
-                    } else if (l.state === 'active') {
-                        ctx.fillStyle = '#ff8800'; 
-                        ctx.shadowBlur = 20;
-                        ctx.shadowColor = '#ff8800';
-                        ctx.fillRect(0, screenY, canvas.width, l.w);
-                        ctx.shadowBlur = 0; 
-                    }
-                } else {
-                    let screenX = l.worldX - cameraX;
-                    if (l.state === 'warning') {
-                        ctx.fillStyle = 'rgba(251, 146, 60, 0.15)'; 
-                        ctx.fillRect(screenX, 0, l.w, canvas.height);
-                        ctx.strokeStyle = 'rgba(251, 146, 60, 0.6)';
-                        ctx.lineWidth = 2;
-                        ctx.strokeRect(screenX, 0, l.w, canvas.height);
-                    } else if (l.state === 'active') {
-                        ctx.fillStyle = '#ff8800'; 
-                        ctx.shadowBlur = 20;
-                        ctx.shadowColor = '#ff8800';
-                        ctx.fillRect(screenX, 0, l.w, canvas.height);
-                        ctx.shadowBlur = 0; 
-                    }
+            // Draw Wind Lines
+            if (windForce !== 0) {
+                ctx.fillStyle = 'rgba(255,255,255,0.15)';
+                for(let i=0; i<25; i++) {
+                    let wx = ((Date.now()*windForce*5) + (i*150)) % canvas.width; if (wx<0) wx += canvas.width;
+                    ctx.fillRect(wx, (i*60)%canvas.height, 60, 2);
                 }
             }
 
-            // Draw Particles
-            ctx.fillStyle = '#f97316'; 
-            for(let p of particles) {
-                ctx.globalAlpha = p.life;
-                ctx.beginPath();
-                ctx.arc(p.x - cameraX, p.y - cameraY, p.size, 0, Math.PI * 2);
-                ctx.fill();
+            // Draw Boss Eye
+            ctx.fillStyle = '#ea580c'; ctx.beginPath(); ctx.arc(canvas.width/2, 0, 150, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = '#111'; let ex = (player.x-(cameraX+canvas.width/2))*0.05; 
+            ctx.beginPath(); ctx.arc(canvas.width/2-40+ex, 60, 15, 0, Math.PI*2); ctx.arc(canvas.width/2+40+ex, 60, 15, 0, Math.PI*2); ctx.fill();
+
+            // Platforms
+            for (let p of platforms) { ctx.fillStyle = p.color; ctx.fillRect(p.x-cameraX, p.y-cameraY, p.w, p.h); }
+
+            // Hazards Drawer
+            for (let h of hazards) {
+                if (h.type === 0 || h.type === 1) { // Lasers
+                    let isH = (h.type===1); let sx = isH ? 0 : h.x-cameraX; let sy = isH ? h.y-cameraY : 0;
+                    let w = isH ? canvas.width : h.w; let ht = isH ? h.w : canvas.height;
+                    if (h.state === 'warn') {
+                        ctx.fillStyle = 'rgba(251,146,60,0.15)'; ctx.fillRect(sx, sy, w, ht);
+                        ctx.strokeStyle = 'rgba(251,146,60,0.6)'; ctx.strokeRect(sx, sy, w, ht);
+                    } else if (h.state === 'active') { ctx.fillStyle = '#ff8800'; ctx.fillRect(sx, sy, w, ht); }
+                } else if (h.type === 2) { // Asteroid
+                    ctx.fillStyle = '#c2410c'; ctx.beginPath(); ctx.arc(h.x-cameraX, h.y-cameraY, h.r, 0, Math.PI*2); ctx.fill();
+                } else if (h.type === 3) { // Seed
+                    ctx.fillStyle = '#111'; ctx.beginPath(); ctx.arc(h.x-cameraX, h.y-cameraY, h.r, 0, Math.PI*2); ctx.fill();
+                } else if (h.type === 4) { // Pulp
+                    ctx.fillStyle = '#fde047'; ctx.beginPath(); ctx.arc(h.x-cameraX, h.y-cameraY, h.r, 0, Math.PI*2); ctx.fill();
+                } else if (h.type === 5) { // Geyser
+                    if(h.state === 'warn') { ctx.strokeStyle='#f97316'; ctx.strokeRect(h.x-cameraX, h.y-cameraY-h.maxH, h.w, h.maxH); }
+                    else { ctx.fillStyle='#ea580c'; ctx.fillRect(h.x-cameraX, h.y-cameraY-h.h, h.w, h.h); }
+                } else if (h.type === 6) { // Boomerang
+                    ctx.save(); ctx.translate(h.x-cameraX, h.y-cameraY); ctx.rotate(Date.now()*0.02);
+                    ctx.fillStyle='#ff8800'; ctx.beginPath(); ctx.arc(0,0, h.r, 0, Math.PI); ctx.fill(); ctx.restore();
+                } else if (h.type === 8) { // Sniper
+                    if(h.state === 'aim' || h.state === 'lock') {
+                        ctx.strokeStyle = h.state==='aim'?'rgba(239,68,68,0.3)':'rgba(239,68,68,0.9)'; ctx.lineWidth=h.state==='aim'?2:5;
+                        ctx.beginPath(); ctx.moveTo(canvas.width/2, 60); ctx.lineTo(h.tx-cameraX, h.ty-cameraY); ctx.stroke();
+                    } else if (h.state === 'bullet') {
+                        ctx.fillStyle='#ef4444'; ctx.beginPath(); ctx.arc(h.x-cameraX, h.y-cameraY, h.r, 0, Math.PI*2); ctx.fill();
+                    }
+                } else if (h.type === 9) { // Roller
+                    ctx.fillStyle='#94a3b8'; ctx.beginPath(); ctx.arc(h.x-cameraX, h.y-cameraY, h.r, 0, Math.PI*2); ctx.fill();
+                }
             }
+
+            // Splash Particles
+            ctx.fillStyle = '#f97316'; 
+            for(let p of particles) { ctx.globalAlpha=p.life; ctx.beginPath(); ctx.arc(p.x-cameraX, p.y-cameraY, p.size, 0, Math.PI*2); ctx.fill(); }
             ctx.globalAlpha = 1.0;
 
-            // Draw Player
+            // Player
             if (!player.dead) {
-                ctx.fillStyle = player.color;
-                ctx.shadowBlur = 15;
-                ctx.shadowColor = player.color;
-                ctx.fillRect(player.x - cameraX, player.y - cameraY, player.w, player.h);
-                ctx.shadowBlur = 0;
-                
-                if (player.jumpsLeft === 2) {
-                    ctx.fillStyle = '#bae6fd'; 
-                    ctx.fillRect(player.x - cameraX + 6, player.y - cameraY + 6, player.w - 12, player.h - 12);
-                } else if (player.jumpsLeft === 1) {
-                    ctx.fillStyle = '#fde047'; 
-                    ctx.fillRect(player.x - cameraX + 8, player.y - cameraY + 8, player.w - 16, player.h - 16);
-                }
+                ctx.fillStyle = '#38bdf8'; ctx.fillRect(player.x-cameraX, player.y-cameraY, player.w, player.h);
+                if (player.jumpsLeft === 2) { ctx.fillStyle = '#bae6fd'; ctx.fillRect(player.x-cameraX+6, player.y-cameraY+6, player.w-12, player.h-12); }
+                else if (player.jumpsLeft === 1) { ctx.fillStyle = '#fde047'; ctx.fillRect(player.x-cameraX+8, player.y-cameraY+8, player.w-16, player.h-16); }
             }
         }
 
-        function gameLoop() {
-            if (!isPlaying) return;
-            updatePhysics();
-            updateHazards();
-            draw();
-            animationId = requestAnimationFrame(gameLoop);
-        }
-
+        function gameLoop() { if(isPlaying){ updatePhysics(); updateHazards(); draw(); animationId=requestAnimationFrame(gameLoop); } }
     </script>
 </body>
 </html>
